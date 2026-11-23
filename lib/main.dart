@@ -248,11 +248,11 @@ class _MusicHomeState extends State<MusicHome> {
         _youtubeResults = results;
         _searchLoading = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _searchLoading = false;
-        _searchError = 'Could not load music results. Check your connection and try again.';
+        _searchError = error.toString().replaceFirst('Exception: ', '');
       });
     }
   }
