@@ -194,12 +194,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           test -n "$VERSION"
 
-      - name: Download Android build
-        uses: actions/download-artifact@v4
-        with:
-          name: netlify-music-android-debug
-          path: release-assets/android
-
       - name: Download Windows build
         uses: actions/download-artifact@v4
         with:
@@ -229,8 +223,7 @@ jobs:
           body: |
             Netlify Music release v${{ steps.app-version.outputs.version }}.
 
-            Download the package for your platform. Windows and Android packages are provided here; the web build is included for browser deployment.
+            Windows package and web build are provided here. Android signed updates will be enabled after a permanent app-signing key is configured.
           files: |
-            release-assets/android/app-debug.apk
             release-assets/windows/netlify-music-windows.zip
             release-assets/netlify-music-web.zip
