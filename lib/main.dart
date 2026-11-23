@@ -727,11 +727,6 @@ class _MusicHomeState extends State<MusicHome> {
     ]),
   );
 
-  Widget _sectionTitle(String title, String action) => Row(children: [
-    Expanded(child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -.4))),
-    Text(action, style: const TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w700)),
-  ]);
-
   Widget _art(int i) {
     final colors = [const Color(0xFF6D3519), const Color(0xFF263A54), const Color(0xFF47305B), const Color(0xFF235247)];
     return Container(color: colors[i % colors.length], child: const Center(child: Icon(Icons.graphic_eq, color: Colors.white70, size: 48)));
