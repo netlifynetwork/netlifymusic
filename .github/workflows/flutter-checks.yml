@@ -40,9 +40,10 @@ jobs:
         shell: bash
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses || true
           for attempt in 1 2 3; do
             echo "Installing Android NDK (attempt $attempt of 3)"
-            if yes | "$SDKMANAGER" --install "ndk;28.2.13676358"; then
+            if "$SDKMANAGER" --install "ndk;28.2.13676358"; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
@@ -106,7 +107,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  apple-builds:
+  ios-build:
     runs-on: macos-latest
     steps:
       - name: Check out repository
@@ -119,8 +120,8 @@ jobs:
           flutter-version: '3.50.0'
           cache: true
 
-      - name: Generate iOS and macOS platform folders
-        run: flutter create . --platforms=ios,macos
+      - name: Generate iOS platform folder
+        run: flutter create . --platforms=ios
 
       - name: Install dependencies
         run: flutter pub get
@@ -138,6 +139,25 @@ jobs:
           path: netlify-music-ios-unsigned.zip
           if-no-files-found: error
           retention-days: 14
+
+  macos-build:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+
+      - name: Generate macOS platform folder
+        run: flutter create . --platforms=macos
+
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Build macOS app
         run: flutter build macos --release
