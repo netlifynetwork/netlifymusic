@@ -1,13 +1,15 @@
 name: netlify_music
 description: Netlify Music cross-platform music app.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ">=3.14.0 <4.0.0"
 
 dependencies:
   http: ^1.2.2
+  package_info_plus: ^8.3.1
+  url_launcher: ^6.3.2
   youtube_player: ^4.0.2
   flutter:
     sdk: flutter
