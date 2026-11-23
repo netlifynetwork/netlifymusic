@@ -29,3 +29,25 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+      - name: Build web app
+        run: flutter build web --release
+
+      - name: Build Android APK
+        run: flutter build apk --debug
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: netlify-music-web
+          path: build/web/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: netlify-music-android-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
