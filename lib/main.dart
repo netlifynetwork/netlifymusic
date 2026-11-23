@@ -91,6 +91,7 @@ class _MusicHomeState extends State<MusicHome> {
   String query = '';
   String greeting = 'Good afternoon';
   Timer? _searchDebounce;
+  final TextEditingController _mobileSearchController = TextEditingController();
   bool _searchLoading = false;
   String? _searchError;
   List<YouTubeVideo> _youtubeResults = [];
@@ -157,6 +158,7 @@ class _MusicHomeState extends State<MusicHome> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _mobileSearchController.dispose();
     super.dispose();
   }
 
@@ -275,8 +277,7 @@ class _MusicHomeState extends State<MusicHome> {
             if (!wide)
               TextField(
                 onChanged: _onSearchChanged,
-                controller: TextEditingController(text: query)
-                  ..selection = TextSelection.collapsed(offset: query.length),
+                controller: _mobileSearchController,
                 decoration: InputDecoration(
                   hintText: 'Search songs, artists and more',
                   prefixIcon: const Icon(Icons.search),
