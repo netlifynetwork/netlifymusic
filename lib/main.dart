@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 void main() => runApp(const NetlifyMusicApp());
 
@@ -45,6 +50,34 @@ const tracks = <Track>[
   Track('Sunset Lover', 'Petit Biscuit', 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=600', '3:57'),
 ];
 
+class YouTubeVideo {
+  final String videoId;
+  final String title;
+  final String channelTitle;
+  final String description;
+  final String thumbnail;
+
+  const YouTubeVideo({
+    required this.videoId,
+    required this.title,
+    required this.channelTitle,
+    required this.description,
+    required this.thumbnail,
+  });
+
+  factory YouTubeVideo.fromJson(Map<String, dynamic> json) {
+    final thumbnails = json['thumbnails'] as Map<String, dynamic>? ?? {};
+    final image = (thumbnails['high'] ?? thumbnails['medium'] ?? thumbnails['default']) as Map<String, dynamic>? ?? {};
+    return YouTubeVideo(
+      videoId: json['videoId']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Untitled video',
+      channelTitle: json['channelTitle']?.toString() ?? 'YouTube channel',
+      description: json['description']?.toString() ?? '',
+      thumbnail: image['url']?.toString() ?? '',
+    );
+  }
+}
+
 class MusicHome extends StatefulWidget {
   const MusicHome({super.key});
   @override
@@ -57,6 +90,75 @@ class _MusicHomeState extends State<MusicHome> {
   bool playing = false;
   String query = '';
   String greeting = 'Good afternoon';
+  Timer? _searchDebounce;
+  bool _searchLoading = false;
+  String? _searchError;
+  List<YouTubeVideo> _youtubeResults = [];
+  static const String _searchEndpoint =
+      'https://nraxrduredxbswmvoijy.supabase.co/functions/v1/youtube-search';
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      query = value;
+      page = 1;
+      _searchError = null;
+    });
+    _searchDebounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() {
+        _youtubeResults = [];
+        _searchLoading = false;
+      });
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      _searchYoutube(value.trim());
+    });
+  }
+
+  Future<void> _searchYoutube(String value) async {
+    setState(() {
+      _searchLoading = true;
+      _searchError = null;
+    });
+    try {
+      final uri = Uri.parse(_searchEndpoint).replace(
+        queryParameters: {'q': value},
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode != 200) {
+        throw Exception(data['error']?.toString() ?? 'Search failed.');
+      }
+      final items = (data['items'] as List<dynamic>? ?? []);
+      if (!mounted) return;
+      setState(() {
+        _youtubeResults = items
+            .whereType<Map<String, dynamic>>()
+            .map(YouTubeVideo.fromJson)
+            .where((video) => video.videoId.isNotEmpty)
+            .toList();
+        _searchLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _searchLoading = false;
+        _searchError = 'Could not load YouTube results. Please try again.';
+      });
+    }
+  }
+
+  Future<void> _openYoutube(YouTubeVideo video) async {
+    final uri = Uri.parse('https://www.youtube.com/watch?v=${video.videoId}');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +257,7 @@ class _MusicHomeState extends State<MusicHome> {
       ],
       if (wide) ...[
         Container(width: 220, height: 40, decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(30)),
-          child: TextField(onChanged: (v) => setState(() { query = v; page = 1; }),
+          child: TextField(onChanged: _onSearchChanged,
             decoration: const InputDecoration(hintText: 'Search music...', prefixIcon: Icon(Icons.search, size: 20), border: InputBorder.none, contentPadding: EdgeInsets.only(top: 9)))),
         const SizedBox(width: 18),
       ],
@@ -165,11 +267,32 @@ class _MusicHomeState extends State<MusicHome> {
 
   Widget _content(bool wide) {
     final filtered = tracks.where((t) => ('${t.title} ${t.artist}').toLowerCase().contains(query.toLowerCase())).toList();
-    if (page == 1 && !wide) {
-      return Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-        TextField(onChanged: (v) => setState(() => query = v), decoration: InputDecoration(hintText: 'What do you want to play?', prefixIcon: const Icon(Icons.search), filled: true, fillColor: card, border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))),
-        const SizedBox(height: 20), Expanded(child: _trackList(filtered)),
-      ]));
+    if (page == 1) {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            if (!wide)
+              TextField(
+                onChanged: _onSearchChanged,
+                controller: TextEditingController(text: query)
+                  ..selection = TextSelection.collapsed(offset: query.length),
+                decoration: InputDecoration(
+                  hintText: 'Search songs, artists and more',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: card,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 18),
+            Expanded(child: _youtubeSearchResults()),
+          ],
+        ),
+      );
     }
     if (page == 2) return _library(wide);
     return SingleChildScrollView(padding: EdgeInsets.fromLTRB(wide ? 28 : 18, 12, wide ? 28 : 18, 28),
@@ -188,6 +311,82 @@ class _MusicHomeState extends State<MusicHome> {
         const SizedBox(height: 14),
         _trackList(tracks.take(4).toList()),
       ]),
+    );
+  }
+
+  Widget _youtubeSearchResults() {
+    if (query.trim().length < 2) {
+      return const Center(
+        child: Text(
+          'Search for a song, artist or album',
+          style: TextStyle(color: muted, fontSize: 14),
+        ),
+      );
+    }
+    if (_searchLoading) {
+      return const Center(child: CircularProgressIndicator(color: orange));
+    }
+    if (_searchError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_searchError!, style: const TextStyle(color: muted)),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => _searchYoutube(query.trim()),
+              child: const Text('Try again'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_youtubeResults.isEmpty) {
+      return const Center(
+        child: Text('No results found.', style: TextStyle(color: muted)),
+      );
+    }
+    return ListView.separated(
+      itemCount: _youtubeResults.length,
+      separatorBuilder: (_, __) => const Divider(color: Color(0xFF303030), height: 1),
+      itemBuilder: (context, index) {
+        final video = _youtubeResults[index];
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(vertical: 5),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: SizedBox(
+              width: 104,
+              height: 58,
+              child: video.thumbnail.isEmpty
+                  ? _art(index)
+                  : Image.network(
+                      video.thumbnail,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _art(index),
+                    ),
+            ),
+          ),
+          title: Text(
+            video.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+          subtitle: Text(
+            video.channelTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: muted, fontSize: 11),
+          ),
+          trailing: IconButton(
+            tooltip: 'Open on YouTube',
+            onPressed: () => _openYoutube(video),
+            icon: const Icon(Icons.play_circle_outline, color: orange, size: 27),
+          ),
+          onTap: () => _openYoutube(video),
+        );
+      },
     );
   }
 
