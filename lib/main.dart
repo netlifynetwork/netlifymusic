@@ -188,10 +188,10 @@ class _MusicHomeState extends State<MusicHome> {
         ]),
         content: Text(_updateAvailable
             ? defaultTargetPlatform == TargetPlatform.android
-                ? 'Version ${_latestVersion ?? ''} is ready. Android in-place updates need a permanent app-signing key. The signed Android release is not enabled yet, so this app will not offer an unsafe installer.'
+                ? 'Version ${_latestVersion ?? ''} is ready. You have ${package.version}. Android in-place updates need a permanent app-signing key. The signed Android release is not enabled yet, so this app will not offer an unsafe installer.'
                 : defaultTargetPlatform == TargetPlatform.windows
-                    ? 'Version ${_latestVersion ?? ''} is ready. Download the Windows package from the official release. Close Netlify Music, extract the new package over the existing app folder, then reopen it.'
-                    : 'Version ${_latestVersion ?? ''} is ready. Open the official release page to see the available packages for your platform.'
+                    ? 'Version ${_latestVersion ?? ''} is ready. You have ${package.version}. Download the Windows package from the official release. Close Netlify Music, extract the new package over the existing app folder, then reopen it.'
+                    : 'Version ${_latestVersion ?? ''} is ready. You have ${package.version}. Open the official release page to see the available packages for your platform.'
             : _updateError ?? 'You are using the latest available version.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
