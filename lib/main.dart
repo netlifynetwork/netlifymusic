@@ -716,7 +716,7 @@ class _MusicHomeState extends State<MusicHome> {
         const SizedBox(height: 10),
         const Text('A world of music, one place.', style: TextStyle(color: Color(0xFFE5C9B5), fontSize: 12)),
         const SizedBox(height: 18),
-        FilledButton.icon(onPressed: () => setState(() { selected = 0; playing = true; }), style: FilledButton.styleFrom(backgroundColor: orange, foregroundColor: Colors.white),
+        FilledButton.icon(onPressed: () { setState(() => page = 1); _onSearchChanged('trending music'); }, style: FilledButton.styleFrom(backgroundColor: orange, foregroundColor: Colors.white),
           icon: const Icon(Icons.play_arrow_rounded), label: const Text('Start listening')),
       ])),
       if (wide) ...[
@@ -732,50 +732,10 @@ class _MusicHomeState extends State<MusicHome> {
     Text(action, style: const TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w700)),
   ]);
 
-  Widget _musicGrid(bool wide) {
-    final count = wide ? 3 : 2;
-    return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-      itemCount: tracks.length, gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: count, crossAxisSpacing: 13, mainAxisSpacing: 13, childAspectRatio: wide ? 1.45 : .95),
-      itemBuilder: (context, i) {
-        final t = tracks[i];
-        return InkWell(onTap: () => setState(() { selected = i; playing = true; }),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(12)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: Stack(fit: StackFit.expand, children: [
-                ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(t.image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _art(i))),
-                Positioned(right: 7, bottom: 7, child: Container(width: 35, height: 35, decoration: const BoxDecoration(color: orange, shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white))),
-              ])),
-              const SizedBox(height: 9),
-              Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-              const SizedBox(height: 3),
-              Text(t.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 11)),
-            ]),
-          ),
-        );
-      });
-  }
-
   Widget _art(int i) {
     final colors = [const Color(0xFF6D3519), const Color(0xFF263A54), const Color(0xFF47305B), const Color(0xFF235247)];
     return Container(color: colors[i % colors.length], child: const Center(child: Icon(Icons.graphic_eq, color: Colors.white70, size: 48)));
   }
-
-  Widget _trackList(List<Track> list) => Column(children: [
-    for (final t in list)
-      InkWell(onTap: () => setState(() { selected = tracks.indexOf(t).clamp(0, tracks.length - 1); playing = true; }),
-        child: Padding(padding: const EdgeInsets.symmetric(vertical: 7), child: Row(children: [
-          ClipRRect(borderRadius: BorderRadius.circular(6), child: SizedBox(width: 43, height: 43, child: Image.network(t.image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _art(tracks.indexOf(t))))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(t.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            const SizedBox(height: 3), Text(t.artist, style: const TextStyle(color: muted, fontSize: 11)),
-          ])),
-          Text(t.duration, style: const TextStyle(color: muted, fontSize: 11)),
-          const SizedBox(width: 10),
-          IconButton(onPressed: () => setState(() { selected = tracks.indexOf(t).clamp(0, tracks.length - 1); playing = !playing; }), icon: const Icon(Icons.play_circle_outline, color: muted)),
-        ]))),
-  ]);
 
   Widget _library(bool wide) => Padding(
     padding: const EdgeInsets.all(24),
