@@ -97,7 +97,6 @@ class _MusicHomeState extends State<MusicHome> {
   List<YouTubeVideo> _youtubeResults = [];
   YoutubePlayerController? _youtubeController;
   YouTubeVideo? _currentVideo;
-  bool _videoPlaying = false;
   static const String _searchEndpoint =
       'https://nraxrduredxbswmvoijy.supabase.co/functions/v1/youtube-search';
 
@@ -163,20 +162,10 @@ class _MusicHomeState extends State<MusicHome> {
     setState(() {
       _youtubeController = controller;
       _currentVideo = video;
-      _videoPlaying = true;
     });
   }
 
-  void _toggleYoutubePlayback() {
-    final controller = _youtubeController;
-    if (controller == null) return;
-    if (_videoPlaying) {
-      controller.pauseVideo();
-    } else {
-      controller.playVideo();
-    }
-    setState(() => _videoPlaying = !_videoPlaying);
-  }
+
 
   @override
   void dispose() {
@@ -452,7 +441,7 @@ class _MusicHomeState extends State<MusicHome> {
             style: const TextStyle(color: muted, fontSize: 11),
           ),
           trailing: IconButton(
-            tooltip: 'Open on YouTube',
+            tooltip: 'Play in Netlify Music',
             onPressed: () => _playYoutube(video),
             icon: const Icon(Icons.play_circle_outline, color: orange, size: 27),
           ),
@@ -603,14 +592,28 @@ class _MusicHomeState extends State<MusicHome> {
             ),
           ),
           if (_youtubeController != null)
-            IconButton(
-              tooltip: _videoPlaying ? 'Pause video' : 'Play video',
-              onPressed: _toggleYoutubePlayback,
-              icon: Icon(
-                _videoPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
+            YoutubeValueBuilder(
+              controller: _youtubeController!,
+              builder: (context, value) {
+                final isPlaying = value.playerState == PlayerState.playing;
+                return IconButton(
+                  tooltip: isPlaying ? 'Pause video' : 'Play video',
+                  onPressed: value.isReady
+                      ? () {
+                          if (isPlaying) {
+                            _youtubeController!.pauseVideo();
+                          } else {
+                            _youtubeController!.playVideo();
+                          }
+                        }
+                      : null,
+                  icon: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                );
+              },
             )
           else
             const Padding(
