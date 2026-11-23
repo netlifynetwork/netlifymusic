@@ -186,18 +186,22 @@ class _MusicHomeState extends State<MusicHome> {
           Expanded(child: Text('Netlify Music update')),
         ]),
         content: Text(_updateAvailable
-            ? 'Version ${_latestVersion ?? ''} is ready. Your installed version is ${package.version}. Open the official release to download the update for your device.'
+            ? defaultTargetPlatform == TargetPlatform.android
+                ? 'Version ${_latestVersion ?? ''} is ready. Android in-place updates need a permanent app-signing key. The signed Android release is not enabled yet, so this app will not offer an unsafe installer.'
+                : defaultTargetPlatform == TargetPlatform.windows
+                    ? 'Version ${_latestVersion ?? ''} is ready. Download the Windows package from the official release. Close Netlify Music, extract the new package over the existing app folder, then reopen it.'
+                    : 'Version ${_latestVersion ?? ''} is ready. Open the official release page to see the available packages for your platform.'
             : _updateError ?? 'You are using the latest available version.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
-          if (_updateAvailable && _releaseUrl != null)
+          if (_updateAvailable && _releaseUrl != null && defaultTargetPlatform != TargetPlatform.android)
             FilledButton(
               onPressed: () async {
                 final uri = Uri.tryParse(_releaseUrl!);
                 if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
               },
-              child: const Text('Download update'),
+              child: const Text('Open release downloads'),
             )
           else if (!_checkingUpdates)
             FilledButton(
