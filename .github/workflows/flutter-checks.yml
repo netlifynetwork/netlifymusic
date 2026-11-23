@@ -88,3 +88,50 @@ jobs:
           path: netlify-music-windows.zip
           if-no-files-found: error
           retention-days: 14
+
+  apple-builds:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+
+      - name: Generate iOS and macOS platform folders
+        run: flutter create . --platforms=ios,macos
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS app (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package iOS app
+        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app netlify-music-ios-unsigned.zip
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: netlify-music-ios-unsigned
+          path: netlify-music-ios-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Build macOS app
+        run: flutter build macos --release
+
+      - name: Package macOS app
+        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/netlify_music.app netlify-music-macos.zip
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: netlify-music-macos
+          path: netlify-music-macos.zip
+          if-no-files-found: error
+          retention-days: 14
