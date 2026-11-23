@@ -176,7 +176,7 @@ jobs:
 
 
   publish-release:
-    if: github.event_name != 'pull_request'
+    if: ${{ github.event_name != 'pull_request' }}
     needs: [validate, windows-build]
     runs-on: ubuntu-latest
     permissions:
