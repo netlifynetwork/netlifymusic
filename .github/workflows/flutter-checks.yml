@@ -173,3 +173,64 @@ jobs:
           path: netlify-music-linux.tar.gz
           if-no-files-found: error
           retention-days: 14
+
+
+  publish-release:
+    if: github.event_name != 'pull_request'
+    needs: [validate, windows-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read app version
+        id: app-version
+        shell: bash
+        run: |
+          VERSION="$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' pubspec.yaml)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          test -n "$VERSION"
+
+      - name: Download Android build
+        uses: actions/download-artifact@v4
+        with:
+          name: netlify-music-android-debug
+          path: release-assets/android
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: netlify-music-windows
+          path: release-assets/windows
+
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: netlify-music-web
+          path: release-assets/web
+
+      - name: Package web build
+        run: |
+          cd release-assets
+          zip -qr netlify-music-web.zip web
+
+      - name: Publish latest app release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.app-version.outputs.version }}
+          name: Netlify Music v${{ steps.app-version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          overwrite_files: true
+          generate_release_notes: true
+          body: |
+            Netlify Music release v${{ steps.app-version.outputs.version }}.
+
+            Download the package for your platform. Windows and Android packages are provided here; the web build is included for browser deployment.
+          files: |
+            release-assets/android/app-debug.apk
+            release-assets/windows/netlify-music-windows.zip
+            release-assets/netlify-music-web.zip
