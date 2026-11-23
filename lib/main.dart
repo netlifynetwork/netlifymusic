@@ -74,6 +74,8 @@ class _MusicHomeState extends State<MusicHome> {
   String query = '';
   final TextEditingController _mobileSearchController = TextEditingController();
   bool _searchLoading = false;
+  bool _searchHasRun = false;
+  int _searchRequestId = 0;
   bool _checkingUpdates = false;
   String? _latestVersion;
   String? _releaseUrl;
@@ -202,6 +204,7 @@ class _MusicHomeState extends State<MusicHome> {
       _searchError = null;
       _youtubeResults = [];
       _searchLoading = false;
+      _searchHasRun = false;
     });
   }
 
@@ -231,22 +234,25 @@ class _MusicHomeState extends State<MusicHome> {
   }
 
   Future<void> _searchYoutube(String value) async {
+    final requestId = ++_searchRequestId;
     setState(() {
       _searchLoading = true;
+      _searchHasRun = true;
       _searchError = null;
+      _youtubeResults = [];
     });
     try {
       final results = await _fetchYoutubeVideos(value);
-      if (!mounted) return;
+      if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _youtubeResults = results;
         _searchLoading = false;
       });
-    } catch (error) {
-      if (!mounted) return;
+    } catch (_) {
+      if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _searchLoading = false;
-        _searchError = 'Could not load YouTube results. Please try again.';
+        _searchError = 'Could not load music results. Check your connection and try again.';
       });
     }
   }
@@ -321,17 +327,6 @@ class _MusicHomeState extends State<MusicHome> {
       _navItem(Icons.home_rounded, 'Home', 0),
       _navItem(Icons.search_rounded, 'Search', 1),
       _navItem(Icons.library_music_rounded, 'Your Library', 2),
-      const SizedBox(height: 30),
-      const Text('YOUR COLLECTION', style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-      const SizedBox(height: 17),
-      _plainNav(Icons.favorite_border, 'Liked Songs'),
-      _plainNav(Icons.add_box_outlined, 'Create playlist'),
-      const SizedBox(height: 22),
-      const Divider(color: Color(0xFF303030)),
-      const SizedBox(height: 12),
-      _playlist('Late Night Drive', orange),
-      _playlist('Daily Mix', const Color(0xFF6D5CE8)),
-      _playlist('Chill Vibes', const Color(0xFF168C79)),
       const Spacer(),
       Row(children: const [Icon(Icons.cloud_done_outlined, size: 16, color: muted), SizedBox(width: 8), Text('Your music, all in one place', style: TextStyle(color: muted, fontSize: 11))]),
     ]),
@@ -524,6 +519,9 @@ class _MusicHomeState extends State<MusicHome> {
     }
     if (_searchLoading) {
       return const Center(child: CircularProgressIndicator(color: orange));
+    }
+    if (!_searchHasRun) {
+      return const Center(child: Text('Press Enter or tap the search arrow to find music.', style: TextStyle(color: muted, fontSize: 14)));
     }
     if (_searchError != null) {
       return Center(
