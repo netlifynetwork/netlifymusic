@@ -341,17 +341,6 @@ class _MusicHomeState extends State<MusicHome> {
           Text(label, style: TextStyle(color: active ? Colors.white : muted, fontWeight: active ? FontWeight.w700 : FontWeight.w500))])));
   }
 
-  Widget _plainNav(IconData icon, String label) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
-    child: Row(children: [Icon(icon, color: muted, size: 19), const SizedBox(width: 13), Text(label, style: const TextStyle(color: muted, fontSize: 13))]),
-  );
-
-  Widget _playlist(String name, Color color) => Padding(
-    padding: const EdgeInsets.only(bottom: 13),
-    child: Row(children: [Container(width: 27, height: 27, decoration: BoxDecoration(color: color.withValues(alpha: .22), borderRadius: BorderRadius.circular(5)),
-      child: Icon(Icons.music_note, color: color, size: 17)), const SizedBox(width: 10), Text(name, style: const TextStyle(color: muted, fontSize: 13))]),
-  );
-
   Widget _topBar(bool wide) => Container(
     height: 70, padding: EdgeInsets.symmetric(horizontal: wide ? 28 : 18),
     child: Row(children: [
