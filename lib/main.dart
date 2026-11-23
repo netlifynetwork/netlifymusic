@@ -36,23 +36,6 @@ class NetlifyMusicApp extends StatelessWidget {
   }
 }
 
-class Track {
-  final String title;
-  final String artist;
-  final String image;
-  final String duration;
-  const Track(this.title, this.artist, this.image, this.duration);
-}
-
-const tracks = <Track>[
-  Track('Midnight City', 'M83', 'https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=600', '4:03'),
-  Track('Blinding Lights', 'The Weeknd', 'https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=600', '3:20'),
-  Track('After Hours', 'The Weeknd', 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600', '6:01'),
-  Track('Night Changes', 'One Direction', 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600', '3:46'),
-  Track('Ocean Drive', 'Duke Dumont', 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600', '3:45'),
-  Track('Sunset Lover', 'Petit Biscuit', 'https://images.unsplash.com/photo-1500534623283-312aade485b7?w=600', '3:57'),
-];
-
 class YouTubeVideo {
   final String videoId;
   final String title;
@@ -89,8 +72,6 @@ class MusicHome extends StatefulWidget {
 
 class _MusicHomeState extends State<MusicHome> {
   int page = 0;
-  int selected = 0;
-  bool playing = false;
   String query = '';
   String greeting = 'Good afternoon';
   Timer? _searchDebounce;
@@ -103,6 +84,10 @@ class _MusicHomeState extends State<MusicHome> {
   String? _updateError;
   String? _searchError;
   List<YouTubeVideo> _youtubeResults = [];
+  List<YouTubeVideo> _homeResults = [];
+  final List<YouTubeVideo> _recentVideos = [];
+  bool _homeLoading = true;
+  String _homeCategory = 'Sinhala';
   YoutubePlayerController? _youtubeController;
   YouTubeVideo? _currentVideo;
   static const String _searchEndpoint =
@@ -115,6 +100,7 @@ class _MusicHomeState extends State<MusicHome> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdates(showDialogIfAvailable: true);
+      _loadHomeMusic('Sinhala new songs');
     });
   }
 
@@ -236,28 +222,53 @@ class _MusicHomeState extends State<MusicHome> {
     });
   }
 
+  Future<List<YouTubeVideo>> _fetchYoutubeVideos(String value) async {
+    final uri = Uri.parse(_searchEndpoint).replace(queryParameters: {'q': value});
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      throw Exception(data['error']?.toString() ?? 'Search failed.');
+    }
+    return (data['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(YouTubeVideo.fromJson)
+        .where((video) => video.videoId.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> _loadHomeMusic(String value) async {
+    setState(() => _homeLoading = true);
+    try {
+      final results = await _fetchYoutubeVideos(value);
+      if (!mounted) return;
+      setState(() {
+        _homeResults = results;
+        _homeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _homeLoading = false);
+    }
+  }
+
+  void _selectHomeCategory(String category, String searchTerm) {
+    setState(() {
+      _homeCategory = category;
+      page = 0;
+    });
+    _loadHomeMusic(searchTerm);
+  }
+
   Future<void> _searchYoutube(String value) async {
     setState(() {
       _searchLoading = true;
       _searchError = null;
     });
     try {
-      final uri = Uri.parse(_searchEndpoint).replace(
-        queryParameters: {'q': value},
-      );
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (response.statusCode != 200) {
-        throw Exception(data['error']?.toString() ?? 'Search failed.');
-      }
-      final items = (data['items'] as List<dynamic>? ?? []);
+      final results = await _fetchYoutubeVideos(value);
       if (!mounted) return;
       setState(() {
-        _youtubeResults = items
-            .whereType<Map<String, dynamic>>()
-            .map(YouTubeVideo.fromJson)
-            .where((video) => video.videoId.isNotEmpty)
-            .toList();
+        _youtubeResults = results;
         _searchLoading = false;
       });
     } catch (error) {
@@ -279,6 +290,9 @@ class _MusicHomeState extends State<MusicHome> {
     setState(() {
       _youtubeController = controller;
       _currentVideo = video;
+      _recentVideos.removeWhere((item) => item.videoId == video.videoId);
+      _recentVideos.insert(0, video);
+      if (_recentVideos.length > 12) _recentVideos.removeLast();
     });
   }
 
@@ -405,7 +419,6 @@ class _MusicHomeState extends State<MusicHome> {
   );
 
   Widget _content(bool wide) {
-    final filtered = tracks.where((t) => ('${t.title} ${t.artist}').toLowerCase().contains(query.toLowerCase())).toList();
     if (page == 1) {
       return Padding(
         padding: const EdgeInsets.all(20),
@@ -433,24 +446,134 @@ class _MusicHomeState extends State<MusicHome> {
       );
     }
     if (page == 2) return _library(wide);
-    return SingleChildScrollView(padding: EdgeInsets.fromLTRB(wide ? 28 : 18, 12, wide ? 28 : 18, 28),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(greeting, style: TextStyle(color: muted, fontSize: 13, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        const Text('Your soundtrack starts here.', style: TextStyle(fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -1.1)),
-        const SizedBox(height: 23),
-        _hero(wide),
-        const SizedBox(height: 30),
-        _sectionTitle(query.isEmpty ? 'Made for your mood' : 'Search results', 'See all'),
-        const SizedBox(height: 15),
-        if (query.isNotEmpty) _trackList(filtered) else _musicGrid(wide),
-        const SizedBox(height: 30),
-        _sectionTitle('Recently played', 'View history'),
-        const SizedBox(height: 14),
-        _trackList(tracks.take(4).toList()),
-      ]),
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(wide ? 28 : 18, 12, wide ? 28 : 18, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(greeting, style: const TextStyle(color: muted, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const Text('Your soundtrack starts here.', style: TextStyle(fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -1.1)),
+          const SizedBox(height: 23),
+          _hero(wide),
+          const SizedBox(height: 26),
+          const Text('Explore music', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 13),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _categoryChip('Sinhala', 'Sinhala new songs'),
+              _categoryChip('English', 'English hit songs'),
+              _categoryChip('Hindi', 'Hindi hit songs'),
+              _categoryChip('Tamil', 'Tamil hit songs'),
+              _categoryChip('Trending', 'trending music worldwide'),
+            ],
+          ),
+          const SizedBox(height: 25),
+          Row(children: [
+            Expanded(child: Text('$_homeCategory music', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
+            if (_homeLoading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: orange)),
+          ]),
+          const SizedBox(height: 14),
+          if (_homeLoading)
+            const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator(color: orange)))
+          else if (_homeResults.isEmpty)
+            const Padding(padding: EdgeInsets.all(20), child: Text('Music could not be loaded. Check your connection and try another category.', style: TextStyle(color: muted)))
+          else
+            _videoGrid(_homeResults, wide),
+          if (_recentVideos.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const Text('Recently played', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            _videoList(_recentVideos.take(5).toList()),
+          ],
+        ],
+      ),
     );
   }
+
+  Widget _categoryChip(String label, String term) {
+    final active = _homeCategory == label;
+    return ChoiceChip(
+      label: Text(label),
+      selected: active,
+      onSelected: (_) => _selectHomeCategory(label, term),
+      selectedColor: orange.withValues(alpha: .22),
+      backgroundColor: card,
+      side: BorderSide(color: active ? orange : Colors.transparent),
+      labelStyle: TextStyle(color: active ? Colors.white : muted, fontWeight: FontWeight.w700),
+    );
+  }
+
+  Widget _videoGrid(List<YouTubeVideo> videos, bool wide) {
+    final count = wide ? 3 : 2;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: videos.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: count,
+        crossAxisSpacing: 13,
+        mainAxisSpacing: 13,
+        childAspectRatio: wide ? 1.22 : .88,
+      ),
+      itemBuilder: (context, index) {
+        final video = videos[index];
+        return InkWell(
+          onTap: () => _playYoutube(video),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(12)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Stack(fit: StackFit.expand, children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: video.thumbnail.isEmpty
+                        ? _art(index)
+                        : Image.network(video.thumbnail, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _art(index)),
+                  ),
+                  Positioned(right: 7, bottom: 7, child: Container(
+                    width: 34, height: 34,
+                    decoration: const BoxDecoration(color: orange, shape: BoxShape.circle),
+                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                  )),
+                ]),
+              ),
+              const SizedBox(height: 8),
+              Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+              const SizedBox(height: 3),
+              Text(video.channelTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 10)),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _videoList(List<YouTubeVideo> videos) => Column(
+    children: [
+      for (var i = 0; i < videos.length; i++)
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(vertical: 3),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: SizedBox(
+              width: 52, height: 48,
+              child: videos[i].thumbnail.isEmpty
+                  ? _art(i)
+                  : Image.network(videos[i].thumbnail, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _art(i)),
+            ),
+          ),
+          title: Text(videos[i].title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          subtitle: Text(videos[i].channelTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: muted, fontSize: 10)),
+          trailing: const Icon(Icons.play_circle_outline, color: orange),
+          onTap: () => _playYoutube(videos[i]),
+        ),
+    ],
+  );
 
   Widget _youtubeSearchResults() {
     if (query.trim().length < 2) {
@@ -654,20 +777,26 @@ class _MusicHomeState extends State<MusicHome> {
         ]))),
   ]);
 
-  Widget _library(bool wide) => Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Text('Your Library', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-    const SizedBox(height: 16),
-    Wrap(spacing: 8, children: ['Playlists', 'Artists', 'Albums'].map((s) => Chip(label: Text(s), backgroundColor: card, side: BorderSide.none)).toList()),
-    const SizedBox(height: 12),
-    Expanded(child: _trackList(tracks)),
-  ]));
+  Widget _library(bool wide) => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Your Library', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      const Text('Songs you have played recently appear here.', style: TextStyle(color: muted, fontSize: 12)),
+      const SizedBox(height: 16),
+      Expanded(
+        child: _recentVideos.isEmpty
+            ? const Center(child: Text('Your listening history is empty.', style: TextStyle(color: muted)))
+            : SingleChildScrollView(child: _videoList(_recentVideos)),
+      ),
+    ]),
+  );
 
   Widget _player(bool wide) {
-    final t = tracks[selected];
     final video = _currentVideo;
-    final title = video?.title ?? t.title;
-    final subtitle = video?.channelTitle ?? t.artist;
-    final imageUrl = video?.thumbnail ?? t.image;
+    final title = video?.title ?? 'Choose something to play';
+    final subtitle = video?.channelTitle ?? 'Search millions of music videos';
+    final imageUrl = video?.thumbnail ?? '';
 
     return Container(
       height: 78,
@@ -684,12 +813,8 @@ class _MusicHomeState extends State<MusicHome> {
               width: 46,
               height: 46,
               child: imageUrl.isEmpty
-                  ? _art(selected)
-                  : Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _art(selected),
-                    ),
+                  ? Container(color: card, child: const Icon(Icons.graphic_eq, color: orange, size: 25))
+                  : Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: card, child: const Icon(Icons.graphic_eq, color: orange)),),
             ),
           ),
           const SizedBox(width: 10),
