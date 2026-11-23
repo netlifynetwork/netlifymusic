@@ -500,10 +500,7 @@ class _MusicHomeState extends State<MusicHome> {
   Widget _youtubeSearchResults() {
     if (query.trim().length < 2) {
       return const Center(
-        child: Text(
-          'Search for a song, artist or album',
-          style: TextStyle(color: muted, fontSize: 14),
-        ),
+        child: Text('Search for a song, artist or album', style: TextStyle(color: muted, fontSize: 14)),
       );
     }
     if (_searchLoading) {
@@ -517,112 +514,45 @@ class _MusicHomeState extends State<MusicHome> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_searchError!, style: const TextStyle(color: muted)),
+            Text(_searchError!, style: const TextStyle(color: muted), textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => _searchYoutube(query.trim()),
-              child: const Text('Try again'),
-            ),
+            FilledButton(onPressed: () => _searchYoutube(query.trim()), child: const Text('Try again')),
           ],
         ),
       );
     }
     if (_youtubeResults.isEmpty) {
-      return const Center(
-        child: Text('No results found.', style: TextStyle(color: muted)),
-      );
+      return const Center(child: Text('No results found.', style: TextStyle(color: muted)));
     }
-    return Column(
-      children: [
-        if (_currentVideo != null && _youtubeController != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: YoutubePlayer(
-              controller: _youtubeController!,
-              aspectRatio: 16 / 9,
-            ),
-          ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _currentVideo!.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                    ),
-                    Text(
-                      _currentVideo!.channelTitle,
-                      style: const TextStyle(color: muted, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const Text(
-                'YouTube',
-                style: TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Divider(color: Color(0xFF303030)),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: EdgeInsets.only(bottom: 6, top: 5),
-              child: Text('More results', style: TextStyle(fontWeight: FontWeight.w800)),
-            ),
-          ),
-        ],
-        Expanded(
-          child: ListView.separated(
+    return ListView.separated(
       itemCount: _youtubeResults.length,
       separatorBuilder: (_, __) => const Divider(color: Color(0xFF303030), height: 1),
       itemBuilder: (context, index) {
         final video = _youtubeResults[index];
+        final selected = _currentVideo?.videoId == video.videoId;
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 5),
+          contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
           leading: ClipRRect(
-            borderRadius: BorderRadius.circular(7),
+            borderRadius: BorderRadius.circular(9),
             child: SizedBox(
-              width: 104,
-              height: 58,
+              width: 112,
+              height: 64,
               child: video.thumbnail.isEmpty
                   ? _art(index)
-                  : Image.network(
-                      video.thumbnail,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _art(index),
-                    ),
+                  : Image.network(video.thumbnail, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _art(index)),
             ),
           ),
-          title: Text(
-            video.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          ),
-          subtitle: Text(
-            video.channelTitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: muted, fontSize: 11),
-          ),
-          trailing: IconButton(
-            tooltip: 'Play in Netlify Music',
-            onPressed: () => _playYoutube(video),
-            icon: const Icon(Icons.play_circle_outline, color: orange, size: 27),
-          ),
+          title: Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13,
+                  color: selected ? orange : Colors.white)),
+          subtitle: Text(video.channelTitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: muted, fontSize: 11)),
+          trailing: Icon(selected ? Icons.graphic_eq_rounded : Icons.play_circle_fill_rounded,
+              color: orange, size: 27),
           onTap: () => _playYoutube(video),
         );
       },
-    ),
-        ),
-      ],
     );
   }
 
@@ -648,53 +578,58 @@ class _MusicHomeState extends State<MusicHome> {
 
   Widget _player(bool wide) {
     final video = _currentVideo;
-    final title = video?.title ?? 'Choose something to play';
-    final subtitle = video?.channelTitle ?? 'Search millions of music videos';
-    final imageUrl = video?.thumbnail ?? '';
-
+    final selected = video != null && _youtubeController != null;
     return Container(
-      height: 78,
-      padding: EdgeInsets.symmetric(horizontal: wide ? 22 : 12),
+      height: selected ? (wide ? 132 : 116) : 78,
+      padding: EdgeInsets.symmetric(horizontal: wide ? 18 : 10, vertical: 8),
       decoration: const BoxDecoration(
         color: Color(0xFF191919),
         border: Border(top: BorderSide(color: Color(0xFF303030))),
       ),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: SizedBox(
-              width: 46,
-              height: 46,
-              child: imageUrl.isEmpty
-                  ? Container(color: card, child: const Icon(Icons.graphic_eq, color: orange, size: 25))
-                  : Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: card, child: const Icon(Icons.graphic_eq, color: orange)),),
+          if (selected)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: SizedBox(
+                width: wide ? 176 : 112,
+                height: wide ? 99 : 63,
+                child: YoutubePlayer(
+                  controller: _youtubeController!,
+                  aspectRatio: 16 / 9,
+                ),
+              ),
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Container(
+                width: 48, height: 48, color: card,
+                child: const Icon(Icons.graphic_eq, color: orange, size: 25),
+              ),
             ),
-          ),
           const SizedBox(width: 10),
           Expanded(
-            flex: 3,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                ),
+                Text(video?.title ?? 'Choose something to play',
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                 const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: muted, fontSize: 10),
-                ),
+                Text(video?.channelTitle ?? 'Search for a song to get started',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: muted, fontSize: 10)),
+                if (selected)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('Playing with YouTube', style: TextStyle(color: muted, fontSize: 9)),
+                  ),
               ],
             ),
           ),
-          if (_youtubeController != null)
+          if (selected)
             YoutubeValueBuilder(
               controller: _youtubeController!,
               builder: (context, value) {
@@ -710,23 +645,10 @@ class _MusicHomeState extends State<MusicHome> {
                           }
                         }
                       : null,
-                  icon: Icon(
-                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
+                  icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white, size: 27),
                 );
               },
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text('Choose a song', style: TextStyle(color: muted, fontSize: 10)),
-            ),
-          if (wide)
-            const Padding(
-              padding: EdgeInsets.only(left: 12),
-              child: Text('YouTube player', style: TextStyle(color: muted, fontSize: 10)),
             ),
         ],
       ),
