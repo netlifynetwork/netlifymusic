@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player/youtube_player.dart';
 
 void main() => runApp(const NetlifyMusicApp());
@@ -93,12 +95,122 @@ class _MusicHomeState extends State<MusicHome> {
   Timer? _searchDebounce;
   final TextEditingController _mobileSearchController = TextEditingController();
   bool _searchLoading = false;
+  bool _checkingUpdates = false;
+  String? _latestVersion;
+  String? _releaseUrl;
+  bool _updateAvailable = false;
+  String? _updateError;
   String? _searchError;
   List<YouTubeVideo> _youtubeResults = [];
   YoutubePlayerController? _youtubeController;
   YouTubeVideo? _currentVideo;
   static const String _searchEndpoint =
       'https://nraxrduredxbswmvoijy.supabase.co/functions/v1/youtube-search';
+  static const String _releaseEndpoint =
+      'https://api.github.com/repos/netlifynetwork/netlifymusic/releases/latest';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdates(showDialogIfAvailable: true);
+    });
+  }
+
+  int _compareVersions(String current, String latest) {
+    List<int> parts(String value) => value
+        .replaceFirst(RegExp(r'^[vV]'), '')
+        .split('+').first
+        .split('.')
+        .map((part) => int.tryParse(part) ?? 0)
+        .toList();
+    final a = parts(current);
+    final b = parts(latest);
+    for (var i = 0; i < (a.length > b.length ? a.length : b.length); i++) {
+      final av = i < a.length ? a[i] : 0;
+      final bv = i < b.length ? b[i] : 0;
+      if (av != bv) return av.compareTo(bv);
+    }
+    return 0;
+  }
+
+  Future<void> _checkForUpdates({bool showDialogIfAvailable = false}) async {
+    if (_checkingUpdates) return;
+    setState(() {
+      _checkingUpdates = true;
+      _updateError = null;
+    });
+    try {
+      final response = await http.get(
+        Uri.parse(_releaseEndpoint),
+        headers: const {'Accept': 'application/vnd.github+json'},
+      ).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) {
+        throw Exception(response.statusCode == 404
+            ? 'No published update is available yet.'
+            : 'Could not check for updates.');
+      }
+      final release = jsonDecode(response.body) as Map<String, dynamic>;
+      final latest = (release['tag_name'] ?? '').toString();
+      final url = (release['html_url'] ?? '').toString();
+      final package = await PackageInfo.fromPlatform();
+      final available = latest.isNotEmpty &&
+          url.isNotEmpty && _compareVersions(package.version, latest) < 0;
+      if (!mounted) return;
+      setState(() {
+        _latestVersion = latest;
+        _releaseUrl = url;
+        _updateAvailable = available;
+        _checkingUpdates = false;
+      });
+      if (available && showDialogIfAvailable) _showUpdateDialog();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _checkingUpdates = false;
+        _updateError = 'Update check is temporarily unavailable.';
+      });
+    }
+  }
+
+  Future<void> _showUpdateDialog() async {
+    final package = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: panel,
+        title: Row(children: const [
+          Icon(Icons.system_update_alt, color: orange),
+          SizedBox(width: 10),
+          Expanded(child: Text('Netlify Music update')),
+        ]),
+        content: Text(_updateAvailable
+            ? 'Version ${_latestVersion ?? ''} is ready. Your installed version is ${package.version}. Open the official release to download the update for your device.'
+            : _updateError ?? 'You are using the latest available version.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+          if (_updateAvailable && _releaseUrl != null)
+            FilledButton(
+              onPressed: () async {
+                final uri = Uri.tryParse(_releaseUrl!);
+                if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Download update'),
+            )
+          else if (!_checkingUpdates)
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _checkForUpdates();
+              },
+              child: const Text('Check again'),
+            ),
+        ],
+      ),
+    );
+  }
 
   void _onSearchChanged(String value) {
     setState(() {
@@ -276,6 +388,13 @@ class _MusicHomeState extends State<MusicHome> {
             decoration: const InputDecoration(hintText: 'Search music...', prefixIcon: Icon(Icons.search, size: 20), border: InputBorder.none, contentPadding: EdgeInsets.only(top: 9)))),
         const SizedBox(width: 18),
       ],
+      IconButton(
+        tooltip: 'Check for updates',
+        onPressed: _checkingUpdates ? null : () => _checkForUpdates().then((_) => _showUpdateDialog()),
+        icon: _checkingUpdates
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: orange))
+            : Icon(_updateAvailable ? Icons.system_update_alt : Icons.system_update, color: _updateAvailable ? orange : muted),
+      ),
       CircleAvatar(radius: 17, backgroundColor: const Color(0xFF35302C), child: const Icon(Icons.person, size: 19, color: Colors.white)),
     ]),
   );
