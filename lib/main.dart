@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player/youtube_player.dart';
 
 void main() => runApp(const NetlifyMusicApp());
 
@@ -95,6 +95,9 @@ class _MusicHomeState extends State<MusicHome> {
   bool _searchLoading = false;
   String? _searchError;
   List<YouTubeVideo> _youtubeResults = [];
+  YoutubePlayerController? _youtubeController;
+  YouTubeVideo? _currentVideo;
+  bool _videoPlaying = false;
   static const String _searchEndpoint =
       'https://nraxrduredxbswmvoijy.supabase.co/functions/v1/youtube-search';
 
@@ -150,15 +153,36 @@ class _MusicHomeState extends State<MusicHome> {
     }
   }
 
-  Future<void> _openYoutube(YouTubeVideo video) async {
-    final uri = Uri.parse('https://www.youtube.com/watch?v=${video.videoId}');
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  void _playYoutube(YouTubeVideo video) {
+    _youtubeController?.close();
+    final controller = YoutubePlayerController.fromVideoId(
+      videoId: video.videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(mute: false),
+    );
+    setState(() {
+      _youtubeController = controller;
+      _currentVideo = video;
+      _videoPlaying = true;
+    });
+  }
+
+  void _toggleYoutubePlayback() {
+    final controller = _youtubeController;
+    if (controller == null) return;
+    if (_videoPlaying) {
+      controller.pauseVideo();
+    } else {
+      controller.playVideo();
+    }
+    setState(() => _videoPlaying = !_videoPlaying);
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
     _mobileSearchController.dispose();
+    _youtubeController?.close();
     super.dispose();
   }
 
@@ -347,7 +371,54 @@ class _MusicHomeState extends State<MusicHome> {
         child: Text('No results found.', style: TextStyle(color: muted)),
       );
     }
-    return ListView.separated(
+    return Column(
+      children: [
+        if (_currentVideo != null && _youtubeController != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: YoutubePlayer(
+              controller: _youtubeController!,
+              aspectRatio: 16 / 9,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _currentVideo!.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
+                    Text(
+                      _currentVideo!.channelTitle,
+                      style: const TextStyle(color: muted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const Text(
+                'YouTube',
+                style: TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: Color(0xFF303030)),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 6, top: 5),
+              child: Text('More results', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ],
+        Expanded(
+          child: ListView.separated(
       itemCount: _youtubeResults.length,
       separatorBuilder: (_, __) => const Divider(color: Color(0xFF303030), height: 1),
       itemBuilder: (context, index) {
@@ -382,12 +453,15 @@ class _MusicHomeState extends State<MusicHome> {
           ),
           trailing: IconButton(
             tooltip: 'Open on YouTube',
-            onPressed: () => _openYoutube(video),
+            onPressed: () => _playYoutube(video),
             icon: const Icon(Icons.play_circle_outline, color: orange, size: 27),
           ),
-          onTap: () => _openYoutube(video),
+          onTap: () => _playYoutube(video),
         );
       },
+    ),
+        ),
+      ],
     );
   }
 
@@ -477,24 +551,79 @@ class _MusicHomeState extends State<MusicHome> {
 
   Widget _player(bool wide) {
     final t = tracks[selected];
-    return Container(height: 78, padding: EdgeInsets.symmetric(horizontal: wide ? 22 : 12), decoration: const BoxDecoration(color: Color(0xFF191919), border: Border(top: BorderSide(color: Color(0xFF303030)))),
-      child: Row(children: [
-        ClipRRect(borderRadius: BorderRadius.circular(6), child: SizedBox(width: 46, height: 46, child: Image.network(t.image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _art(selected)))),
-        const SizedBox(width: 10),
-        Expanded(flex: 3, child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-          const SizedBox(height: 4), Text(t.artist, style: const TextStyle(color: muted, fontSize: 10)),
-        ])),
-        IconButton(onPressed: () {}, icon: const Icon(Icons.skip_previous_rounded, color: muted, size: 22)),
-        Container(width: 38, height: 38, decoration: const BoxDecoration(color: orange, shape: BoxShape.circle),
-          child: IconButton(padding: EdgeInsets.zero, onPressed: () => setState(() => playing = !playing), icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 23))),
-        IconButton(onPressed: () => setState(() { selected = (selected + 1) % tracks.length; playing = true; }), icon: const Icon(Icons.skip_next_rounded, color: muted, size: 22)),
-        if (wide) ...[
-          const SizedBox(width: 14),
-          const Icon(Icons.volume_up_outlined, color: muted, size: 18),
-          SizedBox(width: 70, child: Slider(value: .7, onChanged: (_) {}, activeColor: orange, inactiveColor: const Color(0xFF555555))),
+    final video = _currentVideo;
+    final title = video?.title ?? t.title;
+    final subtitle = video?.channelTitle ?? t.artist;
+    final imageUrl = video?.thumbnail ?? t.image;
+
+    return Container(
+      height: 78,
+      padding: EdgeInsets.symmetric(horizontal: wide ? 22 : 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF191919),
+        border: Border(top: BorderSide(color: Color(0xFF303030))),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              width: 46,
+              height: 46,
+              child: imageUrl.isEmpty
+                  ? _art(selected)
+                  : Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _art(selected),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: muted, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          if (_youtubeController != null)
+            IconButton(
+              tooltip: _videoPlaying ? 'Pause video' : 'Play video',
+              onPressed: _toggleYoutubePlayback,
+              icon: Icon(
+                _videoPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('Choose a song', style: TextStyle(color: muted, fontSize: 10)),
+            ),
+          if (wide)
+            const Padding(
+              padding: EdgeInsets.only(left: 12),
+              child: Text('YouTube player', style: TextStyle(color: muted, fontSize: 10)),
+            ),
         ],
-      ]),
+      ),
     );
   }
 }
