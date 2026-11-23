@@ -38,3 +38,19 @@ Flutter can build Android, iOS, Windows, macOS, Linux and web. Each target needs
 ## Provider requirements
 
 Playback and metadata must use each provider's approved API/player and comply with its terms, including any required attribution and branding.
+
+## In-app update system
+
+The app checks the latest GitHub Release on startup and from the update icon in the top bar. When a newer semantic version is published, it offers the official release page.
+
+The GitHub Actions workflow publishes the Windows package and web bundle as a rolling release. To publish a new app version, increment the `version:` value in `pubspec.yaml` (for example, `1.0.1+2` to `1.0.2+3`) and push to `main`. The release tag is generated from the version before the `+` build number.
+
+### Platform update notes
+
+- **Windows:** The app opens the official release downloads. Close the app and replace the old app folder with the newly extracted package.
+- **Web:** Deploy the new web bundle to the chosen host; users receive it on refresh.
+- **Android:** A permanent Android signing key is required before safe in-place APK updates can be published. Do not change the signing key after the first public release.
+- **iOS/macOS/Linux:** Store signing, notarization or package-specific distribution still needs to be configured before one-click in-app installation can be offered.
+
+The current updater is a version checker and download handoff; it does not silently install software or bypass operating-system security prompts.
+
