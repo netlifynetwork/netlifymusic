@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -36,11 +36,28 @@ jobs:
       - name: Build web app
         run: flutter build web --release
 
+      - name: Install Android NDK with retry
+        shell: bash
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          for attempt in 1 2 3; do
+            echo "Installing Android NDK (attempt $attempt of 3)"
+            if yes | "$SDKMANAGER" --install "ndk;28.2.13676358"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              rm -rf "$ANDROID_HOME/ndk/28.2.13676358"
+              sleep 15
+            fi
+          done
+          echo "Android NDK installation failed after 3 attempts."
+          exit 1
+
       - name: Build Android APK
         run: flutter build apk --debug
 
       - name: Upload web build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: netlify-music-web
           path: build/web/
@@ -48,7 +65,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Android APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: netlify-music-android-debug
           path: build/app/outputs/flutter-apk/app-debug.apk
@@ -59,7 +76,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -82,7 +99,7 @@ jobs:
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath netlify-music-windows.zip
 
       - name: Upload Windows app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: netlify-music-windows
           path: netlify-music-windows.zip
@@ -93,7 +110,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -115,7 +132,7 @@ jobs:
         run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app netlify-music-ios-unsigned.zip
 
       - name: Upload iOS app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: netlify-music-ios-unsigned
           path: netlify-music-ios-unsigned.zip
@@ -129,7 +146,7 @@ jobs:
         run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/netlify_music.app netlify-music-macos.zip
 
       - name: Upload macOS app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: netlify-music-macos
           path: netlify-music-macos.zip
@@ -140,7 +157,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux build dependencies
         run: |
@@ -167,7 +184,7 @@ jobs:
         run: tar -czf netlify-music-linux.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Upload Linux app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: netlify-music-linux
           path: netlify-music-linux.tar.gz
@@ -184,7 +201,7 @@ jobs:
       actions: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read app version
         id: app-version
@@ -195,13 +212,13 @@ jobs:
           test -n "$VERSION"
 
       - name: Download Windows build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: netlify-music-windows
           path: release-assets/windows
 
       - name: Download web build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: netlify-music-web
           path: release-assets/web
