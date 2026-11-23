@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -73,8 +72,6 @@ class MusicHome extends StatefulWidget {
 class _MusicHomeState extends State<MusicHome> {
   int page = 0;
   String query = '';
-  String greeting = 'Good afternoon';
-  Timer? _searchDebounce;
   final TextEditingController _mobileSearchController = TextEditingController();
   bool _searchLoading = false;
   bool _checkingUpdates = false;
@@ -84,10 +81,7 @@ class _MusicHomeState extends State<MusicHome> {
   String? _updateError;
   String? _searchError;
   List<YouTubeVideo> _youtubeResults = [];
-  List<YouTubeVideo> _homeResults = [];
   final List<YouTubeVideo> _recentVideos = [];
-  bool _homeLoading = true;
-  String _homeCategory = 'Sinhala';
   YoutubePlayerController? _youtubeController;
   YouTubeVideo? _currentVideo;
   static const String _searchEndpoint =
@@ -100,7 +94,6 @@ class _MusicHomeState extends State<MusicHome> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdates(showDialogIfAvailable: true);
-      _loadHomeMusic('Sinhala new songs');
     });
   }
 
@@ -206,20 +199,21 @@ class _MusicHomeState extends State<MusicHome> {
   void _onSearchChanged(String value) {
     setState(() {
       query = value;
-      page = 1;
       _searchError = null;
+      _youtubeResults = [];
+      _searchLoading = false;
     });
-    _searchDebounce?.cancel();
-    if (value.trim().length < 2) {
-      setState(() {
-        _youtubeResults = [];
-        _searchLoading = false;
-      });
+  }
+
+  void _submitSearch() {
+    final value = query.trim();
+    if (value.length < 2) {
+      setState(() => _searchError = 'Enter at least 2 characters to search.');
       return;
     }
-    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
-      _searchYoutube(value.trim());
-    });
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => page = 1);
+    _searchYoutube(value);
   }
 
   Future<List<YouTubeVideo>> _fetchYoutubeVideos(String value) async {
@@ -234,29 +228,6 @@ class _MusicHomeState extends State<MusicHome> {
         .map(YouTubeVideo.fromJson)
         .where((video) => video.videoId.isNotEmpty)
         .toList();
-  }
-
-  Future<void> _loadHomeMusic(String value) async {
-    setState(() => _homeLoading = true);
-    try {
-      final results = await _fetchYoutubeVideos(value);
-      if (!mounted) return;
-      setState(() {
-        _homeResults = results;
-        _homeLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _homeLoading = false);
-    }
-  }
-
-  void _selectHomeCategory(String category, String searchTerm) {
-    setState(() {
-      _homeCategory = category;
-      page = 0;
-    });
-    _loadHomeMusic(searchTerm);
   }
 
   Future<void> _searchYoutube(String value) async {
@@ -300,7 +271,6 @@ class _MusicHomeState extends State<MusicHome> {
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
     _mobileSearchController.dispose();
     _youtubeController?.close();
     super.dispose();
@@ -401,12 +371,6 @@ class _MusicHomeState extends State<MusicHome> {
         IconButton(onPressed: () {}, icon: const Icon(Icons.chevron_right, color: muted)),
         const Spacer(),
       ],
-      if (wide) ...[
-        Container(width: 220, height: 40, decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(30)),
-          child: TextField(onChanged: _onSearchChanged,
-            decoration: const InputDecoration(hintText: 'Search music...', prefixIcon: Icon(Icons.search, size: 20), border: InputBorder.none, contentPadding: EdgeInsets.only(top: 9)))),
-        const SizedBox(width: 18),
-      ],
       IconButton(
         tooltip: 'Check for updates',
         onPressed: _checkingUpdates ? null : () => _checkForUpdates().then((_) => _showUpdateDialog()),
@@ -419,92 +383,66 @@ class _MusicHomeState extends State<MusicHome> {
   );
 
   Widget _content(bool wide) {
+    if (page == 2) return _library(wide);
+
     if (page == 1) {
       return Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            if (!wide)
-              TextField(
-                onChanged: _onSearchChanged,
-                controller: _mobileSearchController,
-                decoration: InputDecoration(
-                  hintText: 'Search songs, artists and more',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: card,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
+            _searchField(),
             const SizedBox(height: 18),
             Expanded(child: _youtubeSearchResults()),
           ],
         ),
       );
     }
-    if (page == 2) return _library(wide);
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(wide ? 28 : 18, 12, wide ? 28 : 18, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(greeting, style: const TextStyle(color: muted, fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          const Text('Your soundtrack starts here.', style: TextStyle(fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -1.1)),
-          const SizedBox(height: 23),
-          _hero(wide),
-          const SizedBox(height: 26),
-          const Text('Explore music', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 13),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _categoryChip('Sinhala', 'Sinhala new songs'),
-              _categoryChip('English', 'English hit songs'),
-              _categoryChip('Hindi', 'Hindi hit songs'),
-              _categoryChip('Tamil', 'Tamil hit songs'),
-              _categoryChip('Trending', 'trending music worldwide'),
+              const Text('NETLIFY MUSIC', style: TextStyle(color: orange, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2)),
+              const SizedBox(height: 12),
+              const Text('Find the music\nyou love.', style: TextStyle(fontSize: 42, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1.5)),
+              const SizedBox(height: 12),
+              const Text('Search for any song, artist or album.', style: TextStyle(color: muted, fontSize: 15)),
+              const SizedBox(height: 26),
+              _searchField(),
             ],
           ),
-          const SizedBox(height: 25),
-          Row(children: [
-            Expanded(child: Text('$_homeCategory music', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
-            if (_homeLoading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: orange)),
-          ]),
-          const SizedBox(height: 14),
-          if (_homeLoading)
-            const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator(color: orange)))
-          else if (_homeResults.isEmpty)
-            const Padding(padding: EdgeInsets.all(20), child: Text('Music could not be loaded. Check your connection and try another category.', style: TextStyle(color: muted)))
-          else
-            _videoGrid(_homeResults, wide),
-          if (_recentVideos.isNotEmpty) ...[
-            const SizedBox(height: 28),
-            const Text('Recently played', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            _videoList(_recentVideos.take(5).toList()),
-          ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _categoryChip(String label, String term) {
-    final active = _homeCategory == label;
-    return ChoiceChip(
-      label: Text(label),
-      selected: active,
-      onSelected: (_) => _selectHomeCategory(label, term),
-      selectedColor: orange.withValues(alpha: .22),
-      backgroundColor: card,
-      side: BorderSide(color: active ? orange : Colors.transparent),
-      labelStyle: TextStyle(color: active ? Colors.white : muted, fontWeight: FontWeight.w700),
-    );
-  }
+  Widget _searchField() => TextField(
+    controller: _mobileSearchController,
+    onChanged: _onSearchChanged,
+    onSubmitted: (_) => _submitSearch(),
+    textInputAction: TextInputAction.search,
+    decoration: InputDecoration(
+      hintText: 'Search songs, artists or albums...',
+      prefixIcon: const Icon(Icons.search, color: orange),
+      suffixIcon: IconButton(
+        tooltip: 'Search',
+        onPressed: _submitSearch,
+        icon: const Icon(Icons.arrow_forward_rounded, color: orange),
+      ),
+      filled: true,
+      fillColor: card,
+      contentPadding: const EdgeInsets.symmetric(vertical: 17),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+    ),
+  );
 
   Widget _videoGrid(List<YouTubeVideo> videos, bool wide) {
     final count = wide ? 3 : 2;
@@ -700,32 +638,6 @@ class _MusicHomeState extends State<MusicHome> {
       ],
     );
   }
-
-  Widget _hero(bool wide) => Container(
-    width: double.infinity, padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(18),
-      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF783500), Color(0xFF321B0D), Color(0xFF20150F)]),
-    ),
-    child: Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .13), borderRadius: BorderRadius.circular(20)),
-          child: const Text('NETLIFY PICK', style: TextStyle(fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w800))),
-        const SizedBox(height: 13),
-        const Text('Find your\nnext favourite.', style: TextStyle(fontSize: 28, height: 1.08, fontWeight: FontWeight.w900, letterSpacing: -.8)),
-        const SizedBox(height: 10),
-        const Text('A world of music, one place.', style: TextStyle(color: Color(0xFFE5C9B5), fontSize: 12)),
-        const SizedBox(height: 18),
-        FilledButton.icon(onPressed: () { setState(() => page = 1); _onSearchChanged('trending music'); }, style: FilledButton.styleFrom(backgroundColor: orange, foregroundColor: Colors.white),
-          icon: const Icon(Icons.play_arrow_rounded), label: const Text('Start listening')),
-      ])),
-      if (wide) ...[
-        const SizedBox(width: 18),
-        Container(width: 142, height: 142, decoration: BoxDecoration(color: orange.withValues(alpha: .18), shape: BoxShape.circle),
-          child: const Icon(Icons.graphic_eq_rounded, size: 88, color: Color(0xFFFFB27A))),
-      ],
-    ]),
-  );
 
   Widget _art(int i) {
     final colors = [const Color(0xFF6D3519), const Color(0xFF263A54), const Color(0xFF47305B), const Color(0xFF235247)];
